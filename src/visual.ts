@@ -34,19 +34,23 @@ import EnumerateVisualObjectInstancesOptions = powerbi.EnumerateVisualObjectInst
 import VisualObjectInstance = powerbi.VisualObjectInstance;
 import DataView = powerbi.DataView;
 import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnumerationObject;
+//d3
+import * as d3 from "d3";
+type Selection<T extends d3.BaseType> = d3.Selection<T, any, any, any>;
 
 import { VisualSettings } from "./settings";
 export class Visual implements IVisual {
     private settings: VisualSettings;
+    private svg: Selection<SVGElement>; 
     
     constructor(options: VisualConstructorOptions) {
-        
+        this.svg = d3.select(options.element)
+            .append('svg')
     }
 
     public update(options: VisualUpdateOptions) {
         this.settings = Visual.parseSettings(options && options.dataViews && options.dataViews[0]);
-        let DV = options.dataViews
-        debugger; 
+        let DV = options.dataViews        
     }
 
     private static parseSettings(dataView: DataView): VisualSettings {
