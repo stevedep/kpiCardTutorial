@@ -42,7 +42,8 @@ import { VisualSettings } from "./settings";
 export class Visual implements IVisual {
     private settings: VisualSettings;
     private svg: Selection<SVGElement>; 
-    
+    private recSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
+
     constructor(options: VisualConstructorOptions) {
         this.svg = d3.select(options.element)
             .append('svg')
@@ -51,6 +52,14 @@ export class Visual implements IVisual {
     public update(options: VisualUpdateOptions) {
         this.settings = Visual.parseSettings(options && options.dataViews && options.dataViews[0]);
         let DV = options.dataViews        
+        // Rectangles
+        this.recSelection = this.svg
+            .selectAll('.rect')
+            .data(DV[0].categorical.categories[0].values);
+        this.recSelection
+            .enter()
+            .append('rect')
+            .classed('rect', true);
     }
 
     private static parseSettings(dataView: DataView): VisualSettings {
