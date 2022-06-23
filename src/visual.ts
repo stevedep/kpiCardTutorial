@@ -37,16 +37,24 @@ import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnume
 //d3
 import * as d3 from "d3";
 type Selection<T extends d3.BaseType> = d3.Selection<T, any, any, any>;
+import ISelectionManager = powerbi.extensibility.ISelectionManager; // added for selections
+import ISelectionId = powerbi.visuals.ISelectionId; //added for selections
+import IVisualHost = powerbi.extensibility.visual.IVisualHost; // added for selections
 
 import { VisualSettings } from "./settings";
 export class Visual implements IVisual {
     private settings: VisualSettings;
     private svg: Selection<SVGElement>; 
     private recSelection: d3.Selection<d3.BaseType, any, d3.BaseType, any>;
+    //added for selections
+    private selectionManager: ISelectionManager;
+    private host: IVisualHost;
 
     constructor(options: VisualConstructorOptions) {
         this.svg = d3.select(options.element)
             .append('svg')
+        this.host = options.host; //added for selections        
+        this.selectionManager = this.host.createSelectionManager(); // added for selections
     }
 
     public update(options: VisualUpdateOptions) {
@@ -60,8 +68,15 @@ export class Visual implements IVisual {
 
         //add index positions to the values
         let DV = options.dataViews
-        let vals = DV[0].categorical.categories[0].values;
-        const map2 = vals.map(function (element, index) { return [index, element] }) //add index of value
+        let category = DV[0].categorical.categories[0];
+        let vals = category.values;
+
+        const map2 = vals.map(function (element, index) {            
+            let selectionId: ISelectionId = this.host.createSelectionIdBuilder()
+                .withCategory(category, index)
+                .createSelectionId();
+            return [index, element, selectionId]            
+        }, this) //add index of value
         let l = map2.length;
         
         // Rectangles
@@ -80,6 +95,11 @@ export class Visual implements IVisual {
             .attr("height", 50)
             .style("fill", "black")
             .style("fill-opacity", 0.5);
+
+        //pass SelectionId to the selectionManager
+        recSelectionMerged.on('click', (d) => {
+            this.selectionManager.select(d[2])
+        })
 
     }
 
