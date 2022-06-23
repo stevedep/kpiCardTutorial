@@ -51,15 +51,36 @@ export class Visual implements IVisual {
 
     public update(options: VisualUpdateOptions) {
         this.settings = Visual.parseSettings(options && options.dataViews && options.dataViews[0]);
-        let DV = options.dataViews        
+        this.svg.selectAll("rect").remove(); //remove all rectangles 
+        // set viewport width to the svg where our rectangles reside
+        let width: number = options.viewport.width;
+        let height: number = options.viewport.height;
+        this.svg.attr("width", width);
+        this.svg.attr("height", height);
+
+        //add index positions to the values
+        let DV = options.dataViews
+        let vals = DV[0].categorical.categories[0].values;
+        const map2 = vals.map(function (element, index) { return [index, element] }) //add index of value
+        let l = map2.length;
+        
         // Rectangles
         this.recSelection = this.svg
             .selectAll('.rect')
-            .data(DV[0].categorical.categories[0].values);
-        this.recSelection
+            .data(map2); // map data, with indexes, to svg element collection
+        const recSelectionMerged = this.recSelection
             .enter()
             .append('rect')
             .classed('rect', true);
+
+        recSelectionMerged
+            .attr("x", (d) => width / (l + 1) * (d[0] + 1)) //width devided by number of kpis for x position
+            .attr("y", height / 2)
+            .attr("width", 50)
+            .attr("height", 50)
+            .style("fill", "black")
+            .style("fill-opacity", 0.5);
+
     }
 
     private static parseSettings(dataView: DataView): VisualSettings {
