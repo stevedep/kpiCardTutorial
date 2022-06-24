@@ -41,6 +41,11 @@ import ISelectionManager = powerbi.extensibility.ISelectionManager; // added for
 import ISelectionId = powerbi.visuals.ISelectionId; //added for selections
 import IVisualHost = powerbi.extensibility.visual.IVisualHost; // added for selections
 
+import {
+    select as d3Select
+} from "d3-selection";
+
+
 import { VisualSettings } from "./settings";
 export class Visual implements IVisual {
     private settings: VisualSettings;
@@ -98,8 +103,23 @@ export class Visual implements IVisual {
 
         //pass SelectionId to the selectionManager
         recSelectionMerged.on('click', (d) => {
-            this.selectionManager.select(d[2])
+            this.selectionManager.select(d[2]).then((ids: ISelectionId[]) => {
+                //for all rectangles do
+                recSelectionMerged.each(function (s) {
+                    // if the selection manager returns no id's, then opacity 0.9,
+                    // if the element s matches the selection (ids), then 0.7 else 0.3
+                    let op = !ids.length ? 0.9 : s[2] == ids[0] ? 0.7 : 0.3                    
+                    d3Select(this)
+                        .transition()
+                        .style("fill-opacity", op)
+                        .duration(1000)                    
+                })                
+            })
         })
+
+        recSelectionMerged
+            .exit()
+            .remove();
 
     }
 
