@@ -45,8 +45,15 @@ import {
     select as d3Select
 } from "d3-selection";
 
-
+//to populate the formatting pane
 import { VisualSettings } from "./settings";
+
+//added for list of colours
+import { dataViewWildcard } from "powerbi-visuals-utils-dataviewutils";
+import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
+import ISandboxExtendedColorPalette = powerbi.extensibility.ISandboxExtendedColorPalette;
+import Fill = powerbi.Fill;
+
 export class Visual implements IVisual {
     private settings: VisualSettings;
     private svg: Selection<SVGElement>; 
@@ -54,16 +61,19 @@ export class Visual implements IVisual {
     //added for selections
     private selectionManager: ISelectionManager;
     private host: IVisualHost;
-
+    map2: powerbi.data.Selector[][];
+    
     constructor(options: VisualConstructorOptions) {
         this.svg = d3.select(options.element)
             .append('svg')
         this.host = options.host; //added for selections        
-        this.selectionManager = this.host.createSelectionManager(); // added for selections
+        this.selectionManager = this.host.createSelectionManager(); // added for selections        
     }
 
     public update(options: VisualUpdateOptions) {
         this.settings = Visual.parseSettings(options && options.dataViews && options.dataViews[0]);
+        let colorPalette: ISandboxExtendedColorPalette = this.host.colorPalette; //added for list of colours
+        
         this.svg.selectAll("rect").remove(); //remove all rectangles 
         // set viewport width to the svg where our rectangles reside
         let width: number = options.viewport.width;
@@ -75,19 +85,19 @@ export class Visual implements IVisual {
         let DV = options.dataViews
         let category = DV[0].categorical.categories[0];
         let vals = category.values;
-
-        const map2 = vals.map(function (element, index) {            
+        this.map2 = vals.map(function (element, index) {            
             let selectionId: ISelectionId = this.host.createSelectionIdBuilder()
                 .withCategory(category, index)
-                .createSelectionId();
-            return [index, element, selectionId]            
+                .createSelectionId();            
+            let co = (category.objects) ? category.objects[index] ? String(<Fill>(category.objects[index].colorSelector.fill['solid']['color'])) : "#FF0000" : "#FF0000"; //objects is initially not present
+            return [index, element, selectionId, co, selectionId.getSelector()]            
         }, this) //add index of value
-        let l = map2.length;
-        
+        let l = this.map2.length;
+
         // Rectangles
         this.recSelection = this.svg
             .selectAll('.rect')
-            .data(map2); // map data, with indexes, to svg element collection
+            .data(this.map2); // map data, with indexes, to svg element collection
         const recSelectionMerged = this.recSelection
             .enter()
             .append('rect')
@@ -98,18 +108,18 @@ export class Visual implements IVisual {
             .attr("y", height / 2)
             .attr("width", 50)
             .attr("height", 50)
-            .style("fill", "black")
-            .style("fill-opacity", 0.5);
+            .style("fill", (d)=> d[3])
+            .style("fill-opacity", 0.8);
 
         //pass SelectionId to the selectionManager
         recSelectionMerged.on('click', (d) => {
             this.selectionManager.select(d[2]).then((ids: ISelectionId[]) => {
                 //for all rectangles do
-                recSelectionMerged.each(function (s) {
+                recSelectionMerged.each(function (d) {
                     // if the selection manager returns no id's, then opacity 0.9,
                     // if the element s matches the selection (ids), then 0.7 else 0.3
-                    let op = !ids.length ? 0.9 : s[2] == ids[0] ? 0.7 : 0.3                    
-                    d3Select(this)
+                    let op = !ids.length ? 0.9 : d[2] == ids[0] ? 0.7 : 0.3    
+                    d3Select(this) //this is the element
                         .transition()
                         .style("fill-opacity", op)
                         .duration(1000)                    
@@ -133,6 +143,32 @@ export class Visual implements IVisual {
      *
      */
     public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstance[] | VisualObjectInstanceEnumerationObject {
-        return VisualSettings.enumerateObjectInstances(this.settings || VisualSettings.getDefault(), options);
+       //return VisualSettings.enumerateObjectInstances(this.settings || VisualSettings.getDefault(), options);
+        let objectName = options.objectName;
+        let objectEnumeration: VisualObjectInstance[] = [];
+        
+        switch (objectName) {
+            case 'colorSelector':
+                for (let barDataPoint of this.map2) {
+                    objectEnumeration.push({
+                        objectName: objectName,
+                        displayName: String(barDataPoint[1]),
+                        properties: {
+                            fill: {
+                                solid: {
+                                    color: String(barDataPoint[3])
+                                }
+                            }
+                        },
+                        propertyInstanceKind: {
+                            fill: VisualEnumerationInstanceKinds.ConstantOrRule // allows conditional (rule) formatting
+                        },
+                        altConstantValueSelector: barDataPoint[4],  //needed to get all selections
+                        selector: dataViewWildcard.createDataViewWildcardSelector(dataViewWildcard.DataViewWildcardMatchingOption.InstancesAndTotals)
+                    });
+                }
+                return objectEnumeration;
+        }
+    
     }
 }
