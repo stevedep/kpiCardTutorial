@@ -71,10 +71,9 @@ export class Visual implements IVisual {
     }
 
     public update(options: VisualUpdateOptions) {
+        //console.log(options);
         this.settings = Visual.parseSettings(options && options.dataViews && options.dataViews[0]);
-        let colorPalette: ISandboxExtendedColorPalette = this.host.colorPalette; //added for list of colours
-        
-        this.svg.selectAll("rect").remove(); //remove all rectangles 
+
         // set viewport width to the svg where our rectangles reside
         let width: number = options.viewport.width;
         let height: number = options.viewport.height;
@@ -85,15 +84,17 @@ export class Visual implements IVisual {
         let DV = options.dataViews
         let category = DV[0].categorical.categories[0];
         let vals = category.values;
-        this.map2 = vals.map(function (element, index) {            
+        let measurevals = DV[0].categorical.values[0];
+        this.map2 = vals.map(function (element, index) {
             let selectionId: ISelectionId = this.host.createSelectionIdBuilder()
                 .withCategory(category, index)
-                .createSelectionId();            
+                .createSelectionId();
             let co = (category.objects) ? category.objects[index] ? String(<Fill>(category.objects[index].colorSelector.fill['solid']['color'])) : "#FF0000" : "#FF0000"; //objects is initially not present
-            return [index, element, selectionId, co, selectionId.getSelector()]            
+            let hl = (measurevals.highlights) ? (measurevals.highlights[index]) ? "Y" : "N" : "N";
+            return [index, element, selectionId, co, selectionId.getSelector(), hl]
         }, this) //add index of value
         let l = this.map2.length;
-
+        //console.log(this.map2);
         // Rectangles
         this.recSelection = this.svg
             .selectAll('.rect')
@@ -103,13 +104,20 @@ export class Visual implements IVisual {
             .append('rect')
             .classed('rect', true);
 
-        recSelectionMerged
+        this.svg.selectAll('.rect')            
+            .transition()
+            .duration(1000)
             .attr("x", (d) => width / (l + 1) * (d[0] + 1)) //width devided by number of kpis for x position
-            .attr("y", height / 2)
+            .attr("y", (d) => {
+                let extra = d[5] == "Y" ? 100 : 0;
+                return height / 2 - extra
+            })
             .attr("width", 50)
             .attr("height", 50)
-            .style("fill", (d)=> d[3])
+            .style("fill", (d) => d[3])
             .style("fill-opacity", 0.8);
+
+        //this.svg.selectAll('.rect').style("fill", (d)=> d[3])
 
         //pass SelectionId to the selectionManager
         recSelectionMerged.on('click', (d) => {
@@ -118,18 +126,14 @@ export class Visual implements IVisual {
                 recSelectionMerged.each(function (d) {
                     // if the selection manager returns no id's, then opacity 0.9,
                     // if the element s matches the selection (ids), then 0.7 else 0.3
-                    let op = !ids.length ? 0.9 : d[2] == ids[0] ? 0.7 : 0.3    
+                    let op = !ids.length ? 0.9 : d[2] == ids[0] ? 0.7 : 0.3
                     d3Select(this) //this is the element
                         .transition()
                         .style("fill-opacity", op)
-                        .duration(1000)                    
-                })                
+                        .duration(1000)
+                })
             })
         })
-
-        recSelectionMerged
-            .exit()
-            .remove();
 
     }
 
