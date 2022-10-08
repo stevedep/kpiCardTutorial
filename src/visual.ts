@@ -53,6 +53,18 @@ import { dataViewWildcard } from "powerbi-visuals-utils-dataviewutils";
 import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
 import ISandboxExtendedColorPalette = powerbi.extensibility.ISandboxExtendedColorPalette;
 import Fill = powerbi.Fill;
+import { dataRoleHelper } from "powerbi-visuals-utils-dataviewutils";
+
+
+interface kpiDataPoint {
+    index: number,
+    kpivalue: string,
+    selectionId: ISelectionId,
+    colour: string,
+    selector: any,
+    highlight: string
+}
+
 
 export class Visual implements IVisual {
     private settings: VisualSettings;
@@ -61,7 +73,8 @@ export class Visual implements IVisual {
     //added for selections
     private selectionManager: ISelectionManager;
     private host: IVisualHost;
-    map2: powerbi.data.Selector[][];
+    
+    kpiDataPoints: kpiDataPoint[];
     
     constructor(options: VisualConstructorOptions) {
         this.svg = d3.select(options.element)
@@ -71,7 +84,8 @@ export class Visual implements IVisual {
     }
 
     public update(options: VisualUpdateOptions) {
-        //console.log(options);
+        this.kpiDataPoints = [];
+        console.log(options);
         this.settings = Visual.parseSettings(options && options.dataViews && options.dataViews[0]);
 
         // set viewport width to the svg where our rectangles reside
@@ -82,23 +96,48 @@ export class Visual implements IVisual {
 
         //add index positions to the values
         let DV = options.dataViews
-        let category = DV[0].categorical.categories[0];
+        let category = DV[0].categorical.categories[0],
+            categorical = options.dataViews[0].categorical;
+        console.log('categorical', categorical);
+
+        let kpiId = dataRoleHelper.getCategoryIndexOfRole(categorical.categories, "kpi"),
+            descriptionId = dataRoleHelper.getCategoryIndexOfRole(categorical.categories, "description"),
+            tooltipId = dataRoleHelper.getCategoryIndexOfRole(categorical.categories, "tooltip");
+        console.log('kpiId',kpiId, 'descriptionId',descriptionId, 'tooltipId',tooltipId);
+
         let vals = category.values;
         let measurevals = DV[0].categorical.values[0];
-        this.map2 = vals.map(function (element, index) {
+        let kpiVals = categorical.categories[kpiId]['values'];
+
+        for (var i = 0; i < kpiVals.length; i++) 
+        {
             let selectionId: ISelectionId = this.host.createSelectionIdBuilder()
-                .withCategory(category, index)
+                .withCategory(categorical.categories[kpiId], i)
                 .createSelectionId();
-            let co = (category.objects) ? category.objects[index] ? String(<Fill>(category.objects[index].colorSelector.fill['solid']['color'])) : "#FF0000" : "#FF0000"; //objects is initially not present
-            let hl = (measurevals.highlights) ? (measurevals.highlights[index]) ? "Y" : "N" : "N";
-            return [index, element, selectionId, co, selectionId.getSelector(), hl]
-        }, this) //add index of value
-        let l = this.map2.length;
+
+            this.kpiDataPoints.push({
+                kpivalue : <string>kpiVals[i],
+                colour : (category.objects) ? category.objects[i] ? String(<Fill>(category.objects[i].colorSelector.fill['solid']['color'])) : "#FF0000" : "#FF0000", //objects is initially not present
+                highlight: (measurevals.highlights) ? (measurevals.highlights[i]) ? "Y" : "N" : "N",
+                index: i,
+                selectionId: selectionId,
+                selector : selectionId.getSelector()
+                
+            })
+
+            
+
+        }
+
+        console.log('this.kpiDataPoints',this.kpiDataPoints);
+
+
+        let l = this.kpiDataPoints.length;
         //console.log(this.map2);
         // Rectangles
         this.recSelection = this.svg
             .selectAll('.rect')
-            .data(this.map2); // map data, with indexes, to svg element collection
+            .data(this.kpiDataPoints); // map data, with indexes, to svg element collection
         const recSelectionMerged = this.recSelection
             .enter()
             .append('rect')
@@ -107,14 +146,14 @@ export class Visual implements IVisual {
         this.svg.selectAll('.rect')            
             .transition()
             .duration(1000)
-            .attr("x", (d) => width / (l + 1) * (d[0] + 1)) //width devided by number of kpis for x position
-            .attr("y", (d) => {
-                let extra = d[5] == "Y" ? 100 : 0;
+            .attr("x", (d: kpiDataPoint) => width / (l + 1) * (d.index + 1)) //width devided by number of kpis for x position
+            .attr("y", (d: kpiDataPoint) => {
+                let extra = d.highlight == "Y" ? 100 : 0;
                 return height / 2 - extra
             })
             .attr("width", 50)
             .attr("height", 50)
-            .style("fill", (d) => d[3])
+            .style("fill", (d: kpiDataPoint) => d.colour)
             .style("fill-opacity", 0.8);
 
         //this.svg.selectAll('.rect').style("fill", (d)=> d[3])
@@ -123,10 +162,10 @@ export class Visual implements IVisual {
         recSelectionMerged.on('click', (d) => {
             this.selectionManager.select(d[2]).then((ids: ISelectionId[]) => {
                 //for all rectangles do
-                recSelectionMerged.each(function (d) {
+                recSelectionMerged.each(function (d: kpiDataPoint) {
                     // if the selection manager returns no id's, then opacity 0.9,
                     // if the element s matches the selection (ids), then 0.7 else 0.3
-                    let op = !ids.length ? 0.9 : d[2] == ids[0] ? 0.7 : 0.3
+                    let op = !ids.length ? 0.9 : d.selectionId == ids[0] ? 0.7 : 0.3
                     d3Select(this) //this is the element
                         .transition()
                         .style("fill-opacity", op)
@@ -153,7 +192,7 @@ export class Visual implements IVisual {
         
         switch (objectName) {
             case 'colorSelector':
-                for (let barDataPoint of this.map2) {
+                for (let barDataPoint of this.kpiDataPoints) {
                     objectEnumeration.push({
                         objectName: objectName,
                         displayName: String(barDataPoint[1]),
