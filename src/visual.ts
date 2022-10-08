@@ -159,8 +159,8 @@ export class Visual implements IVisual {
         //this.svg.selectAll('.rect').style("fill", (d)=> d[3])
 
         //pass SelectionId to the selectionManager
-        recSelectionMerged.on('click', (d) => {
-            this.selectionManager.select(d[2]).then((ids: ISelectionId[]) => {
+        recSelectionMerged.on('click', (d: kpiDataPoint) => {
+            this.selectionManager.select(d.selectionId).then((ids: ISelectionId[]) => {
                 //for all rectangles do
                 recSelectionMerged.each(function (d: kpiDataPoint) {
                     // if the selection manager returns no id's, then opacity 0.9,
